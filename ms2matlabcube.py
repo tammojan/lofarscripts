@@ -7,12 +7,16 @@ import scipy.io
 import argparse
 import sys
 
-def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',modelcolname='MODEL_DATA',applyweights=True):
+def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',modelcolname='MODEL_DATA',applyweights=True,numtimes=0):
   """converts a measurement set to a matlab file"""
   t0=table(msname,ack=False)
 
+
   t=taql('SELECT DISTINCT TIME from $t0');
-  ntimes=t.nrows();
+  if numtimes>0:
+    ntimes=min(t.nrows(),numtimes);
+  else:
+    ntimes=t.nrows();
   print "Num times:",ntimes
 
   t=taql('SELECT DATA from $t0 LIMIT 1');
@@ -21,7 +25,9 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
   print "Num channels:",nch
 
   t=taql('select DISTINCT ANTENNA1 from $t0');
-  nants=t.nrows();
+  nants=t.nrows()+1;
+  t=taql('select DISTINCT ANTENNA2 from $t0');
+  nants=max(nants,t.nrows());
   print "Num ants:",nants
  
   V  = np.zeros((nants*2,nants*2,ntimes,nch),dtype=np.complex)
@@ -38,9 +44,6 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
       flag=t.col('FLAG')
       model=t.col(modelcolname)
       weight=t.col('WEIGHT_SPECTRUM')
-      print weight.getdesc()
-
-      print data[0][ch][0]
 
       antenna1=t.col('ANTENNA1')
       antenna2=t.col('ANTENNA2')
@@ -61,11 +64,11 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
             else:
               V[ 2*ant1+cor/2][2*ant2+cor%2][ timeslot][ch] =  data[bl][ch][cor]
               Vm[2*ant1+cor/2][2*ant2+cor%2][ timeslot][ch] = model[bl][ch][cor]
-              #W[ 2*ant1+cor/2][2*ant2+cor%2][ timeslot][ch] =weight[bl][ch][cor]
+              W[ 2*ant1+cor/2][2*ant2+cor%2][ timeslot][ch] =weight[bl][ch][cor]
               # symmetry
               V[ 2*ant2+cor%2][2*ant1+cor/2][ timeslot][ch] =(  data[bl][ch][cor]).conjugate()
               Vm[2*ant2+cor%2][2*ant1+cor/2][ timeslot][ch] =( model[bl][ch][cor]).conjugate()
-              #W[ timeslot][ch][2*ant2+cor%2][2*ant1+cor/2] =weight[bl][ch][cor]
+              W[ timeslot][ch][2*ant2+cor%2][2*ant1+cor/2] =weight[bl][ch][cor]
     
       
   if applyweights:
@@ -85,7 +88,8 @@ if __name__ == '__main__':
   parser.add_argument("-m", "--modelcolname", help="Model column name", default="MODEL_DATA")
   parser.add_argument("-o", "--output", help="Save output in this output file", default="bbsvis.mat")
   parser.add_argument("-nw", "--no-weights", help="Do not apply weights, store them separately in the outputfile", action='store_true')
+  parser.add_argument("-t", "--numtimes", help="Number of time slots to include (0 for all)", default=0, type=int)
 
   args = parser.parse_args()
 
-  ms2matlabcube(msname=args.msname,datacolname=args.datacolname,modelcolname=args.modelcolname,applyweights=(not args.no_weights),visfilename=args.output)
+  ms2matlabcube(msname=args.msname,datacolname=args.datacolname,modelcolname=args.modelcolname,applyweights=(not args.no_weights),visfilename=args.output,numtimes=args.numtimes)
