@@ -20,6 +20,7 @@ def pointsgenerator():
      yield i,j
 
 def mkcube(freqfits,outfits):
+  ''' Put the data of all files in freqfits into one big cube outfis '''
   h = pyfits.open(freqfits[0])
   hdr = h[0].header
   nx = hdr['NAXIS1']
@@ -32,7 +33,7 @@ def mkcube(freqfits,outfits):
     outcube[i,:,:]=h[0].data
 
   hdu = pyfits.PrimaryHDU(data=outcube, header=hdr)
-  hdu.writeto(outfits)
+  hdu.writeto(outfits,clobber=True)
 
 def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make threading easier
   assert maxst+1 > minst
@@ -105,7 +106,6 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   print len(stations), 'stations'
   
   beamintmap = numpy.zeros((2,len(stations),len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
-  print beamintmap.shape
   beamtmpmap = numpy.zeros((2,len(stations),len(xvals),len(xvals)))
   azmap = numpy.zeros((len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
   elmap = numpy.zeros((len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
@@ -127,12 +127,11 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
    decisnan=numpy.isnan(dec)
   
    directionmap*=0.;
-   for x in xrange(len(xvals)):
-     for y in xrange(len(xvals)):
-       if not decisnan[x,y]:
-         sr.setDirection(ra[x,y],dec[x,y])
+   for i,j in pointsgenerator():
+       if not decisnan[i,j]:
+         sr.setDirection(ra[i,j],dec[i,j])
          tmpdirection=sr.getDirection(msreftime)
-         directionmap[x,y,:]=tmpdirection
+         directionmap[i,j,:]=tmpdirection
   
    for i,j in pointsgenerator():
      azmap[i/ds,j/ds]=azs[i,j]
@@ -177,10 +176,11 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   #pixsize *= 2.
   #header['CDELT1']=pixsize
   #header['CDELT2']=pixsize
-  hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[0,])
-  hdu.writeto('beamcubexx-ss%02d_%02d-%dMHz.fits'%(minst,maxst,freqmhz),clobber=True)
-  hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[1,])
-  hdu.writeto('beamcubeyy-ss%02d_%02d-%dMHz.fits'%(minst,maxst,freqmhz),clobber=True)
+  for stationnr in range(minst, maxst+1):
+    hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[0,stationnr-minst,])
+    hdu.writeto('beamcubexx-station%02d-%dMHz.fits'%(stationnr,freqmhz),clobber=True)
+    hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[1,stationnr-minst,])
+    hdu.writeto('beamcubeyy-station%02d-%dMHz.fits'%(stationnr,freqmhz),clobber=True)
   #hdu = pyfits.PrimaryHDU(elmap)
   #hdu.writeto('beamelmap-all-%dMHz.fits'%freqmhz,clobber=True)
   #hdu = pyfits.PrimaryHDU(azmap)
@@ -206,5 +206,6 @@ if __name__ == '__main__':
   pool.map(main, allargs)
 
   for pol in ["xx","yy"]:
-    outfilesxx=["beamcube%s-ss%02d_%02d-%dMHz.fits"%(pol,args.minst,args.maxst,int(frequency/1.e6)) for frequency in frequencies]
-    mkcube(outfilesxx,"beamcube%s-ss%02d_%02d.fits"%(pol,args.minst,args.maxst))
+    for stationnr in range(args.minst, args.maxst+1):
+      outfiles=["beamcube%s-station%02d-%dMHz.fits"%(pol,stationnr,int(frequency/1.e6)) for frequency in frequencies]
+      mkcube(outfiles,"beamcube%s-station%02d.fits"%(pol,stationnr))
