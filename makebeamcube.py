@@ -4,12 +4,14 @@ import pylab
 import numpy
 import pyrap.tables as pt
 import pyrap.images as pim
+import pyrap.quanta
 import os
 import lofar.stationresponse as lsr
 import time
 import pyfits
 import pywcs
 import sys
+import pyrap.measures as pm
 
 import argparse
 import multiprocessing as mp
@@ -41,7 +43,7 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   # Set frequency of the MS to the specified frequency
   freqmhz = int(frequency/1.e6)
   print frequency,freqmhz
-  t = pt.table(msname+'/SPECTRAL_WINDOW',readonly=False,ack=True)
+  t = pt.table(msname+'/SPECTRAL_WINDOW',readonly=False,ack=False)
   t.putcol('REF_FREQUENCY',numpy.array([frequency]))
   t.putcol('CHAN_FREQ',numpy.array([[frequency]]))
   t.close()
@@ -98,9 +100,12 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
       els[i,j]=azel[0][1]*numpy.pi/180.
       azs[i,j]=azel[0][0]*numpy.pi/180.
   
+  ra = numpy.zeros(R.shape)
+  dec = numpy.zeros(R.shape)
   
   t = pt.table(msname+'/ANTENNA',ack=False)
   stcol = t.getcol('NAME')
+  poscol = t.getcol('POSITION')
   #stations = range(len(stcol))
   stations = range(minst,maxst+1)
   print len(stations), 'stations'
@@ -124,11 +129,25 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   evals=0
   for ss in range(len(stations)):
    ra,dec=azel2radec(azs,els,stll[stcol[stations[ss]][:5]][0],stll[stcol[stations[ss]][:5]][1],JD)
-   decisnan=numpy.isnan(dec)
-  
+   # Convert azel to RA/DEC for this station
+   meas=pm.measures()
+   # Set station position
+   meas.do_frame(meas.position('ITRF',*(str(coord)+"m" for coord in poscol[ss])))
+   # Set reference time
+   meas.do_frame(meas.epoch('utc',pyrap.quanta.quantity(msreftime,'s')))
+ 
+   if True:
+    for i in range(0,len(xvals),ds):
+     for j in range(0,len(xvals),ds):
+       if not numpy.isnan(dec[i,j]):
+         radecmeas=meas.measure(meas.direction('AZEL', str(azs[i,j])+' rad', str(els[i,j])+' rad'),'J2000')
+         ra[i,j]=radecmeas['m0']['value']
+         dec[i,j]=radecmeas['m1']['value']
+
    directionmap*=0.;
-   for i,j in pointsgenerator():
-       if not decisnan[i,j]:
+   for i in range(0,len(xvals),ds):
+     for j in range(0,len(xvals),ds):
+       if not numpy.isnan(dec[i,j]):
          sr.setDirection(ra[i,j],dec[i,j])
          tmpdirection=sr.getDirection(msreftime)
          directionmap[i,j,:]=tmpdirection
@@ -152,7 +171,7 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
       beamtmpmap*=0.
       for x in xrange(lenxvals):
        for y in xrange(lenxvals):
-        if not decisnan[x,y]:
+        if not numpy.isnan(dec[x,y]):
          #tmpra = ra[x,y]
          #tmpdec = dec[x,y]
          #sr.setDirection(tmpra,tmpdec)
