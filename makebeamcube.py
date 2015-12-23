@@ -177,10 +177,11 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   #header['CDELT1']=pixsize
   #header['CDELT2']=pixsize
   for stationnr in range(minst, maxst+1):
+    stationname=stcol[stationnr]
     hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[0,stationnr-minst,])
-    hdu.writeto('beamcubexx-station%02d-%dMHz.fits'%(stationnr,freqmhz),clobber=True)
+    hdu.writeto('beamcubexx-%s-%dMHz.fits'%(stationname,freqmhz),clobber=True)
     hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[1,stationnr-minst,])
-    hdu.writeto('beamcubeyy-station%02d-%dMHz.fits'%(stationnr,freqmhz),clobber=True)
+    hdu.writeto('beamcubeyy-%s-%dMHz.fits'%(stationname,freqmhz),clobber=True)
   #hdu = pyfits.PrimaryHDU(elmap)
   #hdu.writeto('beamelmap-all-%dMHz.fits'%freqmhz,clobber=True)
   #hdu = pyfits.PrimaryHDU(azmap)
@@ -188,9 +189,8 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
 
  
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser(description = "Make a beam cube for a fixed frequency")
-  parser.add_argument("frequency", help="Frequency (Hz) to evaluate", type=float)
-  parser.add_argument("msname", help="Measurement set")
+  parser = argparse.ArgumentParser(description = """Make a beam cube all frequencies 
+and a number of stations. It needs a list of files editme01.ms ... editme20.ms""")
   parser.add_argument("minst", help="First station index", type=int)
   parser.add_argument("maxst", help="Last station index (inclusive)", type=int)
   
@@ -202,10 +202,14 @@ if __name__ == '__main__':
     allargs+=[(frequencies[i], "editme%02d.ms"%i,args.minst, args.maxst)]
 
   pool = mp.Pool(len(frequencies))
-  
+ 
+  t = pt.table('editme00.ms/ANTENNA',ack=False)
+  stcol = t.getcol('NAME')
+  stationnames=[stcol[stationnr] for stationnr in range(args.minst, args.maxst+1)]
+ 
   pool.map(main, allargs)
 
   for pol in ["xx","yy"]:
-    for stationnr in range(args.minst, args.maxst+1):
-      outfiles=["beamcube%s-station%02d-%dMHz.fits"%(pol,stationnr,int(frequency/1.e6)) for frequency in frequencies]
-      mkcube(outfiles,"beamcube%s-station%02d.fits"%(pol,stationnr))
+    for stationname in stationnames:
+      outfiles=["beamcube%s-%s-%dMHz.fits"%(pol,stationname,int(frequency/1.e6)) for frequency in frequencies]
+      mkcube(outfiles,"beamcube%s-%s.fits"%(pol,stationname))
