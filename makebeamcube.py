@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
 import pylab
-import numpy
+import numpy as np
 import pyrap.tables as pt
-import pyrap.images as pim
 import pyrap.quanta
 import os
 import lofar.stationresponse as lsr
@@ -16,10 +15,23 @@ import pyrap.measures as pm
 import argparse
 import multiprocessing as mp
 
-def pointsgenerator():
- for i in range(51,52): #range(0,len(xvals),ds):
-   for j in range(75,76): #range(0,len(xvals),ds):
+def allpointsgenerator():
+ for i in range(51,53): #range(0,len(xvals),ds):
+   for j in range(75,77): #range(0,len(xvals),ds):
      yield i,j
+
+def mypointsgenerator(refms,stationnr):
+  ''' Generate a list of all az-el pixels that are used in the given list of measurement sets '''
+  h = pyfits.open('wcs_azimuth_201.fits')
+  w = pywcs.WCS(h[0].header)
+  
+  allpix=set() 
+  for msname in refms:
+    t=pt.taql('select mscal.azel1() deg as AZEL from %s where ANTENNA1==%d'%(msname,stationnr))
+    pix=set(tuple(azel) for azel in np.array(w.wcs_sky2pix(t.getcol('AZEL'),0)).astype(int))
+    allpix = allpix.union(pix)
+  for i, j in pix:
+    yield i,j
 
 def mkcube(freqfits,outfits):
   ''' Put the data of all files in freqfits into one big cube outfis '''
@@ -28,7 +40,7 @@ def mkcube(freqfits,outfits):
   nx = hdr['NAXIS1']
   ny = hdr['NAXIS2']
   nz = len(freqfits)
-  outcube = numpy.zeros((nz,ny,nx))
+  outcube = np.zeros((nz,ny,nx))
 
   for i in range(nz):
     h = pyfits.open(freqfits[i])
@@ -37,15 +49,15 @@ def mkcube(freqfits,outfits):
   hdu = pyfits.PrimaryHDU(data=outcube, header=hdr)
   hdu.writeto(outfits,clobber=True)
 
-def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make threading easier
+def main((frequency, msname, minst, maxst, refms)): # Arguments as a tuple to make threading easier
   assert maxst+1 > minst
   
   # Set frequency of the MS to the specified frequency
   freqmhz = int(frequency/1.e6)
   print frequency,freqmhz
   t = pt.table(msname+'/SPECTRAL_WINDOW',readonly=False,ack=False)
-  t.putcol('REF_FREQUENCY',numpy.array([frequency]))
-  t.putcol('CHAN_FREQ',numpy.array([[frequency]]))
+  t.putcol('REF_FREQUENCY',np.array([frequency]))
+  t.putcol('CHAN_FREQ',np.array([[frequency]]))
   t.close()
   
   t = pt.table(msname,ack=False)
@@ -60,9 +72,9 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   hs = 100.
   ds = 1 # downsample, ** was 2 **
   
-  xvals = numpy.arange(-hs,hs+1.)
-  X,Y = numpy.meshgrid(xvals,xvals)
-  R=numpy.hypot(X,Y)
+  xvals = np.arange(-hs,hs+1.)
+  X,Y = np.meshgrid(xvals,xvals)
+  R=np.hypot(X,Y)
   
   #w = wcs.WCS(naxes=2)
   #w.wcs.crpix=[151,151]
@@ -72,23 +84,23 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   h = pyfits.open('wcs_azimuth_201.fits')
   w = pywcs.WCS(h[0].header)
   
-  els = numpy.zeros(R.shape)
-  azs = numpy.zeros(R.shape)
+  els = np.zeros(R.shape)
+  azs = np.zeros(R.shape)
   for i in range(R.shape[0]):
    for j in range(R.shape[1]):
     azel = w.wcs_pix2sky([[i,j]],0)
     if azel[0][1]<0.:
-      els[i,j]=numpy.nan
-      azs[i,j]=numpy.nan
+      els[i,j]=np.nan
+      azs[i,j]=np.nan
     elif ((i-hs)**2+(j-hs)**2)**0.5 > 1.2*hs:
-      els[i,j]=numpy.nan
-      azs[i,j]=numpy.nan
+      els[i,j]=np.nan
+      azs[i,j]=np.nan
     else:
-      els[i,j]=azel[0][1]*numpy.pi/180.
-      azs[i,j]=azel[0][0]*numpy.pi/180.
+      els[i,j]=azel[0][1]*np.pi/180.
+      azs[i,j]=azel[0][0]*np.pi/180.
   
-  ra = numpy.zeros(R.shape)
-  dec = numpy.zeros(R.shape)
+  ra = np.zeros(R.shape)
+  dec = np.zeros(R.shape)
   
   t = pt.table(msname+'/ANTENNA',ack=False)
   stcol = t.getcol('NAME')
@@ -97,21 +109,21 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   stations = range(minst,maxst+1)
   print len(stations), 'stations'
   
-  beamintmap = numpy.zeros((2,len(stations),len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
-  beamtmpmap = numpy.zeros((2,len(stations),len(xvals),len(xvals)))
-  azmap = numpy.zeros((len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
-  elmap = numpy.zeros((len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
+  beamintmap = np.zeros((2,len(stations),len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
+  beamtmpmap = np.zeros((2,len(stations),len(xvals),len(xvals)))
+  azmap = np.zeros((len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
+  elmap = np.zeros((len(range(0,len(xvals),ds)),len(range(0,len(xvals),ds))))
   
   sr = lsr.stationresponse(msname, useElementResponse=True)
   
   stll = {}
   for line in open('stations_positions.txt'):
    sline = line.split()
-   stll[sline[0]]=[float(sline[2])*numpy.pi/180.,float(sline[3])*numpy.pi/180.] # lon, lat
+   stll[sline[0]]=[float(sline[2])*np.pi/180.,float(sline[3])*np.pi/180.] # lon, lat
   
   t = time.time()
   # directionmap contains itrf directions for every x,y point
-  directionmap=numpy.zeros((len(xvals),len(xvals),3))
+  directionmap=np.zeros((len(xvals),len(xvals),3))
   
   evals=0
   for ss in range(len(stations)):
@@ -124,7 +136,7 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
  
    for i in range(0,len(xvals),ds):
      for j in range(0,len(xvals),ds):
-       if not numpy.isnan(els[i,j]):
+       if not np.isnan(els[i,j]):
          radecmeas=meas.measure(meas.direction('AZEL', str(azs[i,j])+' rad', str(els[i,j])+' rad'),'J2000')
          ra[i,j]=radecmeas['m0']['value']
          dec[i,j]=radecmeas['m1']['value']
@@ -132,12 +144,17 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
    directionmap*=0.;
    for i in range(0,len(xvals),ds):
      for j in range(0,len(xvals),ds):
-       if not numpy.isnan(dec[i,j]):
+       if not np.isnan(dec[i,j]):
          sr.setDirection(ra[i,j],dec[i,j])
          tmpdirection=sr.getDirection(msreftime)
          directionmap[i,j,:]=tmpdirection
-  
-   for i,j in pointsgenerator():
+   
+   if refms is None:
+     pointsgenerator=allpointsgenerator();  
+   else:
+     pointsgenerator=mypointsgenerator(refms,ss)
+
+   for i,j in pointsgenerator:
      azmap[i/ds,j/ds]=azs[i,j]
      elmap[i/ds,j/ds]=els[i,j]
      #print dec[i,j]
@@ -146,7 +163,7 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
      tmpra=0.
      tmpdec=0.
   
-     if not numpy.isnan(dec[i,j]):
+     if not np.isnan(dec[i,j]):
       thisra=ra[i,j]
       thisdec=dec[i,j]
       sr.setRefDelay(thisra,thisdec)
@@ -156,7 +173,7 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
       beamtmpmap*=0.
       for x in xrange(lenxvals):
        for y in xrange(lenxvals):
-        if not numpy.isnan(dec[x,y]):
+        if not np.isnan(dec[x,y]):
          #tmpra = ra[x,y]
          #tmpdec = dec[x,y]
          #sr.setDirection(tmpra,tmpdec)
@@ -165,11 +182,11 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
          bmj=sr.evaluateFreqITRF(msreftime,stations[ss],frequency,mydirection,refdelay,reftile)
          #bmj1=sr.evaluateFreq(msreftime,stations[ss],frequency)
          evals+=1
-         #beamtmpmap[ss,x,y]=numpy.sum(numpy.abs(bmj))
-         beamtmpmap[0,ss,x,y]=numpy.sqrt(numpy.abs(bmj[0,0])**2+numpy.abs(bmj[0,1])**2)
-         beamtmpmap[1,ss,x,y]=numpy.sqrt(numpy.abs(bmj[1,1])**2+numpy.abs(bmj[1,0])**2)
-     beamintmap[0,ss,j/ds,i/ds]=numpy.sum(beamtmpmap[0,ss,:,:])#*cosel)
-     beamintmap[1,ss,j/ds,i/ds]=numpy.sum(beamtmpmap[1,ss,:,:])#*cosel)
+         #beamtmpmap[ss,x,y]=np.sum(np.abs(bmj))
+         beamtmpmap[0,ss,x,y]=np.sqrt(np.abs(bmj[0,0])**2+np.abs(bmj[0,1])**2)
+         beamtmpmap[1,ss,x,y]=np.sqrt(np.abs(bmj[1,1])**2+np.abs(bmj[1,0])**2)
+     beamintmap[0,ss,j/ds,i/ds]=np.sum(beamtmpmap[0,ss,:,:])#*cosel)
+     beamintmap[1,ss,j/ds,i/ds]=np.sum(beamtmpmap[1,ss,:,:])#*cosel)
   
    print ss,'/',len(stations),'-',i/ds,'/',len(range(0,len(xvals),ds)),':',int(time.time()-t),'sec elapsed so far,',evals,'beam evaluations'
   
@@ -197,13 +214,14 @@ if __name__ == '__main__':
 and a number of stations. It needs a list of files editme01.ms ... editme20.ms""")
   parser.add_argument("minst", help="First station index", type=int)
   parser.add_argument("maxst", help="Last station index (inclusive)", type=int)
+  parser.add_argument("-r", "--refms", help="Only make the cube for the pointing of these MS (should be a list)", nargs='+')
   
   args=parser.parse_args()
 
   frequencies=range(100.e6, 200.e6, 5.e6)
   allargs=[]
   for i in range(len(frequencies)):
-    allargs+=[(frequencies[i], "editme%02d.ms"%i,args.minst, args.maxst)]
+    allargs+=[(frequencies[i], "editme%02d.ms"%i,args.minst, args.maxst, args.refms)]
 
   pool = mp.Pool(len(frequencies))
  
