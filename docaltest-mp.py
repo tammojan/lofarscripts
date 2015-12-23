@@ -77,15 +77,38 @@ def docal(ms,smname,getinst):
   processname=mp.current_process().name
   if getinst:
     #oscsystem('./docalibratestandalone -f %s bbscal.parset %s'%(ms,smname))
-    oscsystem('./dodppp msin='+ms+' msout=. steps=[gaincal] gaincal.caltype=diagonal gaincal.sourcedb='+smname+'.sourcedb gaincal.usebeammodel=true')
+    oscsystem('./dodppp showprogress=false showcounts=false msin='+ms+' msout=. steps=[gaincal] gaincal.caltype=diagonal gaincal.sourcedb='+smname+'.sourcedb gaincal.usebeammodel=true')
     oscsystem('parmexportcal in=%s/instrument out=%s_tmpinst zerophase=True type=polar'%(ms,processname))
     newms = ms.split('.MS')[0]+'.prical.MS'
     newms2 = ms.split('.MS')[0]+'.prical.sel.MS'
   else:
     newms = ms.split('.MS')[0]+'.seccal.MS'
     newms2 = ms.split('.MS')[0]+'.seccal.sel.MS'
-  oscsystem('./docalibratestandalone --replace-sourcedb --parmdb %s_tmpinst %s bbsphasecal.parset %s'%(processname,ms,smname))
-  oscsystem('NDPPP msin=%s msout=%s msout.overwrite=true showcounts=false showprogress=false msin.datacolumn=CORRECTED_DATA steps=[aoflagger]'%(ms,newms))
+  # Apply amplitude solutions, write to CORRECTED_DATA, do phase calibration
+  oscsystem(("""./dodppp
+     msin="""+ms+"""
+     msout=.
+     showcounts=flase
+     showprogress=false
+     msout.datacolumn=CORRECTED_DATA
+     steps=[applycal,gaincal]
+     applycal.parmdb="""+processname+"""_tmpinst
+     gaincal.sourcedb="""+smname+""".sourcedb
+     gaincal.caltype=phaseonly
+     gaincal.parmdb="""+processname+"""_tmpinst2
+     gaincal.usebeammodel=true""").replace('\n',' ')
+  )
+  #oscsystem('./docalibratestandalone --replace-sourcedb --parmdb %s_tmpinst %s bbsphasecal.parset %s'%(processname,ms,smname))
+  # Apply phase calibration, write to CORRECTED_DATA
+  oscsystem(("""./dodppp
+     msin="""+ms+"""
+     msout=.
+     msin.datacolumn=CORRECTED_DATA
+     msout.datacolumn=CORRECTED_DATA
+     steps=[applycal,aoflagger]
+     applycal.parmdb="""+processname+"""_tmpinst2""").replace('\n',' ')
+  )
+  #oscsystem('NDPPP msin=%s msout=%s msout.overwrite=true showcounts=false showprogress=false msin.datacolumn=CORRECTED_DATA steps=[aoflagger]'%(ms,newms))
   tant = pt.table('%s/ANTENNA'%newms,readonly=True,ack=False)
   antnames = tant.getcol('NAME')
   bs = getbadstations('%s_tmpinst'%processname,0.01,antnames)
