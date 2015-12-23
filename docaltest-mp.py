@@ -24,43 +24,42 @@ def oscsystem(cmd):
     raise Exception('oei:', cmd, 'retval:', retval)
 
 def doaverage(ms,skymod):
+  ''' Perform flagging and averaging. Skymod is only used for smart demixing '''
   processname=mp.current_process().name
-  pf = open('NDPPP_%s.parset'%processname,'w')
   newms = ms.split('.MS')[0]+'.dppp.MS'
-  print >>pf, 'msin=%s'%ms
-  print >>pf, 'msout=%s'%(newms)
-  print >>pf, 'msout.overwrite=true'
-  print >>pf, 'showprogress=false'
-  print >>pf, 'showtimings=false'
-  print >>pf, 'showcounts=false'
-  print >>pf, 'steps=[preflag,badst,flagedge,aoflag,demix,filter]'
-  #print >>pf, 'steps=[preflag,flagedge,aoflag,filter,squash]'
-  print >>pf, 'preflag.baseline=*&&&'
-  print >>pf, 'flagedge.type=preflagger'
-  print >>pf, 'flagedge.chan = [0,1,30,31]'
-  print >>pf, 'badst.type=preflagger'
-  print >>pf, 'badst.baseline="CS004HBA*;RS503*"'
-  print >>pf, 'demix.type=smartdemix'
-  print >>pf, 'demix.demixtimestep=90'
-  print >>pf, 'demix.demixfreqstep=32'
-  print >>pf, 'demix.timestep=5'
-  print >>pf, 'demix.freqstep=32'
-  print >>pf, 'demix.ateam.skymodel = "Ateamhighresdemix.sourcedb"'
-  print >>pf, 'demix.estimate.skymodel = "Ateam-lowresdemix.sourcedb"'
-  print >>pf, 'demix.target.skymodel = "%s"'%skymod
-  print >>pf, 'demix.instrumentmodel = "demix_instrument_%s"'%processname
-  print >>pf, 'demix.sources = []'
-  print >>pf, 'filter.baseline=!CS013*&&*'
-  print >>pf, 'filter.remove=True'
-  #print >>pf, 'squash.timestep=5'
-  #print >>pf, 'squash.freqstep=32'
-  pf.close()
-  oscsystem('NDPPP NDPPP_%s.parset'%processname)
+  dpppparset = """
+     msin="""+ms+"""
+     msout="""+newms+"""
+     msout.overwrite=true
+     showprogress=false
+     showtimings=false
+     showcounts=false
+     steps=[preflag,badst,flagedge,aoflag,demix,filter]
+     preflag.baseline='*&&&'
+     flagedge.type=preflagger
+     flagedge.chan=[0,1,30,31]
+     badst.type=preflagger
+     badst.baseline='CS004HBA*;RS503*'
+     demix.type=smartdemix
+     demix.demixtimestep=90
+     demix.demixfreqstep=32
+     demix.timestep=5
+     demix.freqstep=32
+     demix.ateam.skymodel="Ateamhighresdemix.sourcedb"
+     demix.estimate.skymodel="Ateam-lowresdemix.sourcedb"
+     demix.target.skymodel="""+skymod+"""
+     demix.instrumentmodel="demix_instrument_"""+processname+""""
+     demix.sources=[]
+     filter.baseline='!CS013*&&*'
+     filter.remove=True
+  """
+  oscsystem('NDPPP '+dpppparset.replace('\n',' '))
   oscsystem('rm -rf demix_instrument_%s'%processname)
-  oscsystem('rm NDPPP_%s.parset'%processname)
   return newms
 
 def getbadstations(parmdbname,cutoff,antnames):
+  ''' Flag bad stations based on amplitudes in a parmdb. 
+      Returns a semicolon separated list, to be used in msselect'''
   sl = set([])
   p = lp.parmdb(parmdbname)
   dv = p.getDefValues('*Ampl*')
@@ -74,23 +73,21 @@ def getbadstations(parmdbname,cutoff,antnames):
   return outstring[:-1]
 
 def docal(ms,smname,getinst):
+  ''' Do calibration. If getinst is True, do primary calibration. '''
   processname=mp.current_process().name
   if getinst:
-    oscsystem('./docalibratestandalone -f %s bbscal.parset %s'%(ms,smname))
-    # or 3C295_HBA.model
+    #oscsystem('./docalibratestandalone -f %s bbscal.parset %s'%(ms,smname))
+    oscsystem('./dodppp msin='+ms+' msout=. steps=[gaincal] gaincal.caltype=diagonal gaincal.sourcedb='+smname+'.sourcedb gaincal.usebeammodel=true')
     oscsystem('parmexportcal in=%s/instrument out=%s_tmpinst zerophase=True type=polar'%(ms,processname))
     newms = ms.split('.MS')[0]+'.prical.MS'
     newms2 = ms.split('.MS')[0]+'.prical.sel.MS'
   else:
     newms = ms.split('.MS')[0]+'.seccal.MS'
     newms2 = ms.split('.MS')[0]+'.seccal.sel.MS'
-  #oscsystem('calibrate-stand-alone --replace-sourcedb --parmdb %s_tmpinst %s bbscorr.parset %s'%(processname,ms,smname))
   oscsystem('./docalibratestandalone --replace-sourcedb --parmdb %s_tmpinst %s bbsphasecal.parset %s'%(processname,ms,smname))
   oscsystem('NDPPP msin=%s msout=%s msout.overwrite=true showcounts=false showprogress=false msin.datacolumn=CORRECTED_DATA steps=[aoflagger]'%(ms,newms))
-  #oscsystem('calibrate-stand-alone -f %s bbsphasecal.parset %s'%(newms,smname))
   tant = pt.table('%s/ANTENNA'%newms,readonly=True,ack=False)
   antnames = tant.getcol('NAME')
-  #bs = getbadstations('%s_tmpinst'%processname,1.,antnames)
   bs = getbadstations('%s_tmpinst'%processname,0.01,antnames)
   if bs == '':
     return newms
@@ -153,9 +150,6 @@ def threadmain((args, i)):
       oscsystem('rm -rf %s_tmpinst'%processname)
       checktarms = docal(newtarms,args.tarskymod,True)
       oscsystem('rm -rf %s_tmpinst'%processname)
-      #calprimean,calpristd = uvflux(finalcalms,'CORRECTED_DATA',args.baseline)
-      #tarsecmean,tarsecstd = uvflux(finaltarms,'CORRECTED_DATA',args.baseline)
-      #tarprimean,tarpristd = uvflux(checktarms,'CORRECTED_DATA',args.baseline)
 
     calprimean,calpristd = uvflux(finalcalms,'DATA',args.baseline)
     tarsecmean,tarsecstd = uvflux(finaltarms,'DATA',args.baseline)
