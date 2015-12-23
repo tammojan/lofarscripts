@@ -57,19 +57,6 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   
   # makeresponseimage abs=true frames=1 ms=freq00.MS size=350 cellsize=1200arcsec stations=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59
   
-  def azel2radec(az,el,lon,lat,JD):
-  	#JD = 2456788.5279360712
-  	#lon = 6.869883*numpy.pi/180.
-  	#lat = 52.915111*numpy.pi/180.
-  	T_UT1 = (JD-2451545.)/36525.
-  	ThetaGMST = 67310.54841 + (876600.*3600. + 8640184.812866)*T_UT1 + .093104*T_UT1**2 - 6.2e-6*T_UT1**3
-  	ThetaGMST = (ThetaGMST%(86400.*(ThetaGMST/abs(ThetaGMST)))/240.)%360.
-  	ThetaLST = ThetaGMST*numpy.pi/180. + lon
-  	DEC = numpy.arcsin(numpy.sin(el)*numpy.sin(lat)+numpy.cos(el)*numpy.cos(lat)*numpy.cos(az))
-  	LHA = numpy.arctan2(-numpy.sin(az)*numpy.cos(el)/numpy.cos(DEC),(numpy.sin(el)-numpy.sin(DEC)*numpy.sin(lat))/(numpy.cos(DEC)*numpy.cos(lat)))
-  	RA = (ThetaLST-LHA)%(2.*numpy.pi)
-  	return RA,DEC
-  
   hs = 100.
   ds = 1 # downsample, ** was 2 **
   
@@ -128,7 +115,6 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   
   evals=0
   for ss in range(len(stations)):
-   ra,dec=azel2radec(azs,els,stll[stcol[stations[ss]][:5]][0],stll[stcol[stations[ss]][:5]][1],JD)
    # Convert azel to RA/DEC for this station
    meas=pm.measures()
    # Set station position
@@ -136,10 +122,9 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
    # Set reference time
    meas.do_frame(meas.epoch('utc',pyrap.quanta.quantity(msreftime,'s')))
  
-   if True:
-    for i in range(0,len(xvals),ds):
+   for i in range(0,len(xvals),ds):
      for j in range(0,len(xvals),ds):
-       if not numpy.isnan(dec[i,j]):
+       if not numpy.isnan(els[i,j]):
          radecmeas=meas.measure(meas.direction('AZEL', str(azs[i,j])+' rad', str(els[i,j])+' rad'),'J2000')
          ra[i,j]=radecmeas['m0']['value']
          dec[i,j]=radecmeas['m1']['value']
