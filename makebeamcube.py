@@ -19,6 +19,21 @@ def pointsgenerator():
    for j in range(75,76): #range(0,len(xvals),ds):
      yield i,j
 
+def mkcube(freqfits,outfits):
+  h = pyfits.open(freqfits[0])
+  hdr = h[0].header
+  nx = hdr['NAXIS1']
+  ny = hdr['NAXIS2']
+  nz = len(freqfits)
+  outcube = numpy.zeros((nz,ny,nx))
+
+  for i in range(nz):
+    h = pyfits.open(freqfits[i])
+    outcube[i,:,:]=h[0].data
+
+  hdu = pyfits.PrimaryHDU(data=outcube, header=hdr)
+  hdu.writeto(outfits)
+
 def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make threading easier
   assert maxst+1 > minst
   
@@ -163,9 +178,9 @@ def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make thre
   #header['CDELT1']=pixsize
   #header['CDELT2']=pixsize
   hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[0,])
-  hdu.writeto('beamintmapwcselabstj2sqrtxx-ss%02d_%02d-%dMHz.fits'%(minst,maxst,freqmhz),clobber=True)
+  hdu.writeto('beamcubexx-ss%02d_%02d-%dMHz.fits'%(minst,maxst,freqmhz),clobber=True)
   hdu = pyfits.PrimaryHDU(header=header,data=beamintmap[1,])
-  hdu.writeto('beamintmapwcselabstj2sqrtyy-ss%02d_%02d-%dMHz.fits'%(minst,maxst,freqmhz),clobber=True)
+  hdu.writeto('beamcubeyy-ss%02d_%02d-%dMHz.fits'%(minst,maxst,freqmhz),clobber=True)
   #hdu = pyfits.PrimaryHDU(elmap)
   #hdu.writeto('beamelmap-all-%dMHz.fits'%freqmhz,clobber=True)
   #hdu = pyfits.PrimaryHDU(azmap)
@@ -189,4 +204,7 @@ if __name__ == '__main__':
   pool = mp.Pool(len(frequencies))
   
   pool.map(main, allargs)
-  #main((args.frequency, args.msname, args.minst, args.maxst))
+
+  for pol in ["xx","yy"]:
+    outfilesxx=["beamcube%s-ss%02d_%02d-%dMHz.fits"%(pol,args.minst,args.maxst,int(frequency/1.e6)) for frequency in frequencies]
+    mkcube(outfilesxx,"beamcube%s-ss%02d_%02d.fits"%(pol,args.minst,args.maxst))
