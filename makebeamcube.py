@@ -8,18 +8,18 @@ import os
 import lofar.stationresponse as lsr
 import time
 import pyfits
-#from astropy import wcs
 import pywcs
 import sys
 
 import argparse
+import multiprocessing as mp
 
 def pointsgenerator():
  for i in range(51,52): #range(0,len(xvals),ds):
    for j in range(75,76): #range(0,len(xvals),ds):
      yield i,j
 
-def main(frequency, msname, minst, maxst):
+def main((frequency, msname, minst, maxst)): # Arguments as a tuple to make threading easier
   assert maxst+1 > minst
   
   # Set frequency of the MS to the specified frequency
@@ -170,7 +170,8 @@ def main(frequency, msname, minst, maxst):
   #hdu.writeto('beamelmap-all-%dMHz.fits'%freqmhz,clobber=True)
   #hdu = pyfits.PrimaryHDU(azmap)
   #hdu.writeto('beamazmap-all-%dMHz.fits'%freqmhz,clobber=True)
-  
+
+ 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description = "Make a beam cube for a fixed frequency")
   parser.add_argument("frequency", help="Frequency (Hz) to evaluate", type=float)
@@ -179,7 +180,13 @@ if __name__ == '__main__':
   parser.add_argument("maxst", help="Last station index (inclusive)", type=int)
   
   args=parser.parse_args()
- 
-  print args.maxst
+
+  frequencies=range(100.e6, 200.e6, 5.e6)
+  allargs=[]
+  for i in range(len(frequencies)):
+    allargs+=[(frequencies[i], "editme%02d.ms"%i,args.minst, args.maxst)]
+
+  pool = mp.Pool(len(frequencies))
   
-  main(args.frequency, args.msname, args.minst, args.maxst)
+  pool.map(main, allargs)
+  #main((args.frequency, args.msname, args.minst, args.maxst))
