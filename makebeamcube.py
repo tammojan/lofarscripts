@@ -14,14 +14,17 @@ import sys
 
 import argparse
 
+def pointsgenerator():
+ for i in range(51,52): #range(0,len(xvals),ds):
+   for j in range(75,76): #range(0,len(xvals),ds):
+     yield i,j
 
 def main(frequency, msname, minst, maxst):
   assert maxst+1 > minst
   
-  #frequency = numpy.array([110.,120.,130.,140.,150,160.,170.,180.])*1.e6
+  # Set frequency of the MS to the specified frequency
   freqmhz = int(frequency/1.e6)
   print frequency,freqmhz
-  
   t = pt.table(msname+'/SPECTRAL_WINDOW',readonly=False,ack=True)
   t.putcol('REF_FREQUENCY',numpy.array([frequency]))
   t.putcol('CHAN_FREQ',numpy.array([[frequency]]))
@@ -116,8 +119,7 @@ def main(frequency, msname, minst, maxst):
          tmpdirection=sr.getDirection(msreftime)
          directionmap[x,y,:]=tmpdirection
   
-   for i in range(51,52): #range(0,len(xvals),ds):
-    for j in range(75,76): #range(0,len(xvals),ds):
+   for i,j in pointsgenerator():
      azmap[i/ds,j/ds]=azs[i,j]
      elmap[i/ds,j/ds]=els[i,j]
      #print dec[i,j]
@@ -151,7 +153,7 @@ def main(frequency, msname, minst, maxst):
      beamintmap[0,ss,j/ds,i/ds]=numpy.sum(beamtmpmap[0,ss,:,:])#*cosel)
      beamintmap[1,ss,j/ds,i/ds]=numpy.sum(beamtmpmap[1,ss,:,:])#*cosel)
   
-    print ss,'/',len(stations),'-',i/ds,'/',len(range(0,len(xvals),ds)),':',int(time.time()-t),'sec elapsed so far,',evals,'beam evaluations'
+   print ss,'/',len(stations),'-',i/ds,'/',len(range(0,len(xvals),ds)),':',int(time.time()-t),'sec elapsed so far,',evals,'beam evaluations'
   
   header = h[0].header
   #header['CRPIX1']=51.
