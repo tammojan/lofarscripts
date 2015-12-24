@@ -74,6 +74,7 @@ def getbadstations(parmdbname,cutoff,antnames):
 
 def docal(ms,smname,getinst):
   ''' Do calibration. If getinst is True, do primary calibration. '''
+  print "---- docal("+ms+", "+smname+", "+str(getinst)+")"
   processname=mp.current_process().name
   if getinst:
     #oscsystem('./docalibratestandalone -f %s bbscal.parset %s'%(ms,smname))
@@ -85,24 +86,33 @@ def docal(ms,smname,getinst):
     newms = ms.split('.MS')[0]+'.seccal.MS'
     newms2 = ms.split('.MS')[0]+'.seccal.sel.MS'
   oscsystem('./docalibratestandalone --replace-sourcedb --parmdb %s_tmpinst %s bbsphasecal.parset %s'%(processname,ms,smname))
+  print "-- docal dppp"
   oscsystem('NDPPP msin=%s msout=%s msout.overwrite=true showcounts=false showprogress=false msin.datacolumn=CORRECTED_DATA steps=[aoflagger]'%(ms,newms))
-  tant = pt.table('%s/ANTENNA'%newms,readonly=True,ack=False)
+  print "-- docal open tant "
+  tant = pt.table('%s/ANTENNA'%newms,readonly=True,ack=True)
   antnames = tant.getcol('NAME')
   bs = getbadstations('%s_tmpinst'%processname,0.01,antnames)
+  print "-- docal done bs"
   if bs == '':
     return newms
   else:
+    print "-- docal do msselect"
+    print 'msselect in=%s out=%s deep=true baseline="%s"'%(newms,newms2,bs)
     oscsystem('msselect in=%s out=%s deep=true baseline="%s"'%(newms,newms2,bs))
     return newms2
 
 def uvflux(ms,column,baseline):
-  t = pt.table(ms,readonly=True,ack=False)
-  stats = pt.taql("select gstddev(SUMMED) as STDVALS, gmean(SUMMED) as MEANVALS, gcount(SUMMED) as NVALS from (select gmean(mean(0.5*(abs(%s[,0])+abs(%s[,3])))) as SUMMED from $t where (mscal.baseline('%s') and any(FLAG)!=True) GROUP BY TIME)"%(column,column,baseline))
-  meanvals = stats.getcol('MEANVALS')[0]
-  nvals = stats.getcol('NVALS')[0]
-  stdvals = stats.getcol('STDVALS')[0]/sqrt(nvals)
-  print ms,': from',nvals,'time samples, flux is',meanvals,'+/-',stdvals,'(%.2f%% fractional uncertainty)'%((stdvals/meanvals)*100.)
-  return meanvals,stdvals
+  taqlquery="select gstddev(SUMMED) as STDVALS, gmean(SUMMED) as MEANVALS, gcount(SUMMED) as NVALS from (select gmean(mean(0.5*(abs(%s[,0])+abs(%s[,3])))) as SUMMED from %s where (mscal.baseline('%s') and any(FLAG)!=True) GROUP BY TIME)"%(column,column,ms,baseline)
+  stats = pt.taql(taqlquery)
+  if stats.nrows() > 0:
+    meanvals = stats.getcol('MEANVALS')[0]
+    nvals = stats.getcol('NVALS')[0]
+    stdvals = stats.getcol('STDVALS')[0]/sqrt(nvals)
+    print ms,': from',nvals,'time samples, flux is',meanvals,'+/-',stdvals,'(%.2f%% fractional uncertainty)'%((stdvals/meanvals)*100.)
+    return meanvals,stdvals
+  else:
+    print 'Subband %s is totally flagged, no fluxes here'%ms
+    return 0., 0. 
 
 def sourcespec(name,infr):
   fr = infr/150. # reference frequency
@@ -151,6 +161,7 @@ def threadmain((args, i)):
       checktarms = docal(newtarms,args.tarskymod,True)
       oscsystem('rm -rf %s_tmpinst'%processname)
 
+    print '--- uvflux'
     calprimean,calpristd = uvflux(finalcalms,'DATA',args.baseline)
     tarsecmean,tarsecstd = uvflux(finaltarms,'DATA',args.baseline)
     tarprimean,tarpristd = uvflux(checktarms,'DATA',args.baseline)
@@ -188,9 +199,11 @@ def main(args):
   if not args.shortercut:
     pool = mp.Pool(int(args.numthreads)) # number of concurrent frequencies
     try:
-      if args.numthreads==1:
+      if int(args.numthreads)==1:
+        print "Using single-threaded version"
         map(threadmain, argsfreqs)
       else:
+        print "Using multithreaded version"
         pool.map(threadmain, argsfreqs)
     except Exception as e:
       print e
