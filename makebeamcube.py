@@ -26,10 +26,15 @@ def mypointsgenerator(refms,stationnr):
   w = pywcs.WCS(h[0].header)
   
   allpix=set() 
+  print 'refms in mypointsgenerator:',refms
   for msname in refms:
+    print "Extracting az/el from", msname
     t=pt.taql('select mscal.azel1() deg as AZEL from %s where ANTENNA1==%d'%(msname,stationnr))
+    # TODO: this should be round instead of floor!!!
     pix=set(tuple(azel) for azel in np.array(w.wcs_sky2pix(t.getcol('AZEL'),0)).astype(int))
+    print "pix:", pix
     allpix = allpix.union(pix)
+  print 'allpix:', allpix
   for i, j in pix:
     yield i,j
 
@@ -150,11 +155,14 @@ def main((frequency, msname, minst, maxst, refms)): # Arguments as a tuple to ma
          directionmap[i,j,:]=tmpdirection
    
    if refms is None:
+     print "Using all points"
      pointsgenerator=allpointsgenerator();  
    else:
+     print "Using points in",refms
      pointsgenerator=mypointsgenerator(refms,ss)
 
    for i,j in pointsgenerator:
+     sys.exit(0)
      azmap[i/ds,j/ds]=azs[i,j]
      elmap[i/ds,j/ds]=els[i,j]
      #print dec[i,j]
@@ -183,8 +191,8 @@ def main((frequency, msname, minst, maxst, refms)): # Arguments as a tuple to ma
          #bmj1=sr.evaluateFreq(msreftime,stations[ss],frequency)
          evals+=1
          #beamtmpmap[ss,x,y]=np.sum(np.abs(bmj))
-         beamtmpmap[0,ss,x,y]=np.sqrt(np.abs(bmj[0,0])**2+np.abs(bmj[0,1])**2)
-         beamtmpmap[1,ss,x,y]=np.sqrt(np.abs(bmj[1,1])**2+np.abs(bmj[1,0])**2)
+         beamtmpmap[0,ss,x,y]=np.abs(bmj[0,0])**2+np.abs(bmj[0,1])**2
+         beamtmpmap[1,ss,x,y]=np.abs(bmj[1,1])**2+np.abs(bmj[1,0])**2
      beamintmap[0,ss,j/ds,i/ds]=np.sum(beamtmpmap[0,ss,:,:])#*cosel)
      beamintmap[1,ss,j/ds,i/ds]=np.sum(beamtmpmap[1,ss,:,:])#*cosel)
   
@@ -229,7 +237,7 @@ and a number of stations. It needs a list of files editme01.ms ... editme20.ms""
   stcol = t.getcol('NAME')
   stationnames=[stcol[stationnr] for stationnr in range(args.minst, args.maxst+1)]
  
-  pool.map(main, allargs)
+  map(main, allargs)
 
   for pol in ["xx","yy"]:
     for stationname in stationnames:
