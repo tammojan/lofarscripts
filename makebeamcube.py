@@ -30,12 +30,10 @@ def mypointsgenerator(refms,stationnr):
   for msname in refms:
     print "Extracting az/el from", msname
     t=pt.taql('select mscal.azel1() deg as AZEL from %s where ANTENNA1==%d'%(msname,stationnr))
-    # TODO: this should be round instead of floor!!!
-    pix=set(tuple(azel) for azel in np.array(w.wcs_sky2pix(t.getcol('AZEL'),0)).astype(int))
-    print "pix:", pix
+    pix=set(tuple(azel) for azel in (np.array(w.wcs_sky2pix(t.getcol('AZEL'),0))+0.5).astype(int))
     allpix = allpix.union(pix)
-  print 'allpix:', allpix
-  for i, j in pix:
+  print 'allpix for', refms, 'and station', stationnr, ':', allpix
+  for i, j in allpix:
     yield i,j
 
 def mkcube(freqfits,outfits):
@@ -162,7 +160,6 @@ def main((frequency, msname, minst, maxst, refms)): # Arguments as a tuple to ma
      pointsgenerator=mypointsgenerator(refms,ss)
 
    for i,j in pointsgenerator:
-     sys.exit(0)
      azmap[i/ds,j/ds]=azs[i,j]
      elmap[i/ds,j/ds]=els[i,j]
      #print dec[i,j]
@@ -237,7 +234,7 @@ and a number of stations. It needs a list of files editme01.ms ... editme20.ms""
   stcol = t.getcol('NAME')
   stationnames=[stcol[stationnr] for stationnr in range(args.minst, args.maxst+1)]
  
-  map(main, allargs)
+  pool.map(main, allargs)
 
   for pol in ["xx","yy"]:
     for stationname in stationnames:
