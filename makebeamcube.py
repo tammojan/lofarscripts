@@ -20,7 +20,7 @@ def allpointsgenerator():
    for j in range(75,77): #range(0,len(xvals),ds):
      yield i,j
 
-def mypointsgenerator(refms,stationnr):
+def mypointsgenerator(refms,stationname):
   ''' Generate a list of all az-el pixels that are used in the given list of measurement sets '''
   h = pyfits.open('wcs_azimuth_201.fits')
   w = pywcs.WCS(h[0].header)
@@ -29,10 +29,10 @@ def mypointsgenerator(refms,stationnr):
   print 'refms in mypointsgenerator:',refms
   for msname in refms:
     print "Extracting az/el from", msname
-    t=pt.taql('select mscal.azel1() deg as AZEL from %s where ANTENNA1==%d'%(msname,stationnr))
+    t=pt.taql('select mscal.azel1() deg as AZEL from %s where [select NAME from ::ANTENNA][ANTENNA1]=="%s"'%(msname,stationname))
     pix=set(tuple(azel) for azel in (np.array(w.wcs_sky2pix(t.getcol('AZEL'),0))+0.5).astype(int))
     allpix = allpix.union(pix)
-  print 'allpix for', refms, 'and station', stationnr, ':', allpix
+  print 'allpix for', refms, 'and station', stationname, ':', allpix
   for i, j in allpix:
     yield i,j
 
@@ -157,7 +157,7 @@ def main((frequency, msname, minst, maxst, refms)): # Arguments as a tuple to ma
      pointsgenerator=allpointsgenerator();  
    else:
      print "Using points in",refms
-     pointsgenerator=mypointsgenerator(refms,ss)
+     pointsgenerator=mypointsgenerator(refms,stcol[ss])
 
    for i,j in pointsgenerator:
      azmap[i/ds,j/ds]=azs[i,j]
