@@ -188,8 +188,8 @@ def main((frequency, msname, minst, maxst, refms)): # Arguments as a tuple to ma
          #bmj1=sr.evaluateFreq(msreftime,stations[ss],frequency)
          evals+=1
          #beamtmpmap[ss,x,y]=np.sum(np.abs(bmj))
-         beamtmpmap[0,ss,x,y]=np.abs(bmj[0,0])**2+np.abs(bmj[0,1])**2
-         beamtmpmap[1,ss,x,y]=np.abs(bmj[1,1])**2+np.abs(bmj[1,0])**2
+         beamtmpmap[0,ss,x,y]=np.sqrt(np.abs(bmj[0,0])**2+np.abs(bmj[0,1])**2)
+         beamtmpmap[1,ss,x,y]=np.sqrt(np.abs(bmj[1,1])**2+np.abs(bmj[1,0])**2)
      beamintmap[0,ss,j/ds,i/ds]=np.sum(beamtmpmap[0,ss,:,:])#*cosel)
      beamintmap[1,ss,j/ds,i/ds]=np.sum(beamtmpmap[1,ss,:,:])#*cosel)
   
