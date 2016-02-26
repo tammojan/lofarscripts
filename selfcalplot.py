@@ -27,7 +27,7 @@ def makepng(name, directory, bw=40, obstime=5, drawcolorbar=False):
             w=0.2
         fig=plt.figure(figsize=(15,15*w))
     
-        imagenoise = 5E-3*sqrt(bw/40.)*sqrt(obstime/5.)
+        imagenoise = 1E-3*sqrt(40./bw)*sqrt(5./obstime)
     
         if drawcolorbar:
             f=astropy.io.fits.open(filename)
