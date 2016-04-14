@@ -68,7 +68,7 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
               # symmetry
               V[ 2*ant2+cor%2][2*ant1+cor/2][ timeslot][ch] =(  data[bl][ch][cor]).conjugate()
               Vm[2*ant2+cor%2][2*ant1+cor/2][ timeslot][ch] =( model[bl][ch][cor]).conjugate()
-              W[ timeslot][ch][2*ant2+cor%2][2*ant1+cor/2] =weight[bl][ch][cor]
+              W[ 2*ant1+cor%2][2*ant2+cor/2][ timeslot][ch] =weight[bl][ch][cor]
     
       
   if applyweights:
