@@ -14,6 +14,8 @@ ms = pt.table(msname, ack=False)
 
 time = ms.getcol('TIME')[0]
 
+#sr.setDirection(myra_in_rad, mydec_in_rad) # default is phase center
+
 itrfdir = sr.getDirection(time)
 refdelay = sr.getRefDelay(time)
 reftile = sr.getRefTile(time)
