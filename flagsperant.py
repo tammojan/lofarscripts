@@ -30,9 +30,9 @@ def setflagsperant(msname, station, channel, time):
 
     t = pt.table(msname, readonly=False, ack=False)
 
-    query = '''UPDATE $t SET FLAG[$channel,]=True WHERE (ANTENNA1==$station OR
-               ANTENNA2==$station) AND TIME IN (SELECT DISTINCT TIME FROM $t
-               LIMIT $time''';
+    query = '''UPDATE $t SET FLAG[%s,]=True WHERE (ANTENNA1 IN %s OR
+               ANTENNA2 IN %s) AND TIME IN (SELECT DISTINCT TIME FROM $t
+               LIMIT %s)'''%(channel,station,station,time);
     pt.taql(query)
 
 def showflagsperant(msname):
@@ -58,7 +58,6 @@ def showflagsperant(msname):
     maxflags = (nAnt-1)*4;
     if hasautocorr:
       maxflags = nAnt * 4; # 4 polarizations
-    print("maxflags",maxflags)
 
     times = pt.taql("SELECT DISTINCT TIME FROM $t").getcol("TIME");
     infodict={}
@@ -90,15 +89,17 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(description=showflagsperant.__doc__)
     parser.add_argument("-s", "--station", help="Station to set flags for", default="0")
     parser.add_argument("-c", "--channel", help="Channel to set flags for", default="0")
-    parser.add_argument("-t", "--time", help="Time to set flags for", default="0")
-    parser.add_argument("operation", help="Operation: show or set")
+    parser.add_argument("-t", "--time", help="Time to set flags for", default="1")
+    parser.add_argument("operation", help="Operation: show or set or reset")
     parser.add_argument("ms", help="Measurement set")
 
     args = parser.parse_args()
 
-    if parser.operation == "show":
+    if args.operation == "show":
       showflagsperant(args.ms)
-    elif parser.operation == "set":
+    elif args.operation == "set":
       setflagsperant(args.ms, args.station, args.channel, args.time)
+    elif args.operation == "reset":
+      pt.taql("UPDATE %s SET FLAG=False"%(args.ms))
     else:
-      print("Operation must be 'show' or 'set')
+      print("Operation must be 'show' or 'set'")
