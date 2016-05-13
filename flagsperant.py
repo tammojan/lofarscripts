@@ -22,12 +22,25 @@ class color:
    UNDERLINE = '\033[4m'
    END = '\033[0m'
 
-def flagsperant(msname):
+def setflagsperant(msname, station, channel, time):
+    """
+    Sets all flags for a certain antenna at a certain channel and timestep
+    """
+    pass
+
+    t = pt.table(msname, readonly=False, ack=False)
+
+    query = '''UPDATE $t SET FLAG[$channel,]=True WHERE (ANTENNA1==$station OR
+               ANTENNA2==$station) AND TIME IN (SELECT DISTINCT TIME FROM $t
+               LIMIT $time''';
+    pt.taql(query)
+
+def showflagsperant(msname):
     """
     Shows the amount of flagging per antenna and channel
     """
 
-    t = pt.table(msname, readonly=False, ack=False)
+    t = pt.table(msname, readonly=True, ack=False)
 
     query = "SELECT TIME, ANTENNA%d AS ANT, NTRUES(GAGGR(FLAG),[0,2]) AS FLAG FROM $t GROUP BY ANTENNA%d, TIME"
     byant1 = pt.taql(query%(1,1));
@@ -74,9 +87,18 @@ def flagsperant(msname):
     t.close()
 
 if __name__ == "__main__":
-    parser=argparse.ArgumentParser(description=flagsperant.__doc__)
+    parser=argparse.ArgumentParser(description=showflagsperant.__doc__)
+    parser.add_argument("-s", "--station", help="Station to set flags for", default="0")
+    parser.add_argument("-c", "--channel", help="Channel to set flags for", default="0")
+    parser.add_argument("-t", "--time", help="Time to set flags for", default="0")
+    parser.add_argument("operation", help="Operation: show or set")
     parser.add_argument("ms", help="Measurement set")
 
     args = parser.parse_args()
 
-    flagsperant(args.ms)
+    if parser.operation == "show":
+      showflagsperant(args.ms)
+    elif parser.operation == "set":
+      setflagsperant(args.ms, args.station, args.channel, args.time)
+    else:
+      print("Operation must be 'show' or 'set')
