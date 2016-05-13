@@ -35,14 +35,19 @@ def setflagsperant(msname, station, channel, time):
                LIMIT %s)'''%(channel,station,station,time);
     pt.taql(query)
 
-def showflagsperant(msname):
+def showflagsperant(msname, notime=False):
     """
     Shows the amount of flagging per antenna and channel
     """
 
     t = pt.table(msname, readonly=True, ack=False)
 
-    query = "SELECT TIME, ANTENNA%d AS ANT, NTRUES(GAGGR(FLAG),[0,2]) AS FLAG FROM $t GROUP BY ANTENNA%d, TIME"
+    query = "SELECT "
+    if not notime:
+      query += "TIME, "
+    query += "ANTENNA%d AS ANT, NTRUES(GAGGR(FLAG),[0,2]) AS FLAG FROM $t GROUP BY ANTENNA%d"
+    if not notime:
+      query += ", TIME"
     byant1 = pt.taql(query%(1,1));
     byant2 = pt.taql(query%(2,2));
 
@@ -58,12 +63,18 @@ def showflagsperant(msname):
     maxflags = (nAnt-1)*4;
     if hasautocorr:
       maxflags = nAnt * 4; # 4 polarizations
-
     times = pt.taql("SELECT DISTINCT TIME FROM $t").getcol("TIME");
+    
+    if notime:
+      maxflags *= len(times)
+      times = [0]
     infodict={}
     for row in chain(byant1,byant2):
       for ch in range(nCh):
-        infodict[(row["ANT"], row["TIME"], ch)] = infodict.get((row["ANT"], row["TIME"], ch), 0) + row["FLAG"][ch]
+        key = (row["ANT"], 0, ch)
+        if not notime:
+          key = (row["ANT"], row["TIME"], ch)
+        infodict[key] = infodict.get(key, 0) + row["FLAG"][ch]
 
     timenum=0
     for time in times:
@@ -90,13 +101,14 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--station", help="Station to set flags for", default="0")
     parser.add_argument("-c", "--channel", help="Channel to set flags for", default="0")
     parser.add_argument("-t", "--time", help="Time to set flags for", default="1")
+    parser.add_argument("-n", "--notime", action="store_true")
     parser.add_argument("operation", help="Operation: show or set or reset")
     parser.add_argument("ms", help="Measurement set")
 
     args = parser.parse_args()
 
     if args.operation == "show":
-      showflagsperant(args.ms)
+      showflagsperant(args.ms, notime=args.notime)
     elif args.operation == "set":
       setflagsperant(args.ms, args.station, args.channel, args.time)
     elif args.operation == "reset":
