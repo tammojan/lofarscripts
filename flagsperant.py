@@ -45,7 +45,7 @@ def showflagsperant(msname, notime=False):
     query = "SELECT "
     if not notime:
       query += "TIME, "
-    query += "ANTENNA%d AS ANT, NTRUES(GAGGR(FLAG),[0,2]) AS FLAG FROM $t GROUP BY ANTENNA%d"
+    query += "ANTENNA%d AS ANT, SUMS(GNTRUES(FLAG),1)/4 AS FLAG FROM $t GROUP BY ANTENNA%d"
     if not notime:
       query += ", TIME"
     byant1 = pt.taql(query%(1,1));
@@ -60,7 +60,7 @@ def showflagsperant(msname, notime=False):
     #print("nCh",nCh)
     #print("nTime",nTime)
     hasautocorr = pt.taql("SELECT * FROM $t WHERE ANTENNA1==ANTENNA2").nrows()>0
-    maxflags = (nAnt-1)*4;
+    maxflags = (nAnt-1);
     if hasautocorr:
       maxflags = nAnt * 4; # 4 polarizations
     times = pt.taql("SELECT DISTINCT TIME FROM $t").getcol("TIME");
@@ -74,7 +74,7 @@ def showflagsperant(msname, notime=False):
         key = (row["ANT"], 0, ch)
         if not notime:
           key = (row["ANT"], row["TIME"], ch)
-        infodict[key] = infodict.get(key, 0) + row["FLAG"][ch]
+        infodict[key] = infodict.get(key, 0) + int(row["FLAG"][ch])
 
     timenum=0
     for time in times:
