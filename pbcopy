@@ -1,0 +1,3 @@
+cat | nc -q1 localhost 2224
+
+# http://seancoates.com/blogs/remote-pbcopy/
