@@ -111,7 +111,9 @@ if __name__ == "__main__":
       showflagsperant(args.ms, notime=args.notime)
     elif args.operation == "set":
       setflagsperant(args.ms, args.station, args.channel, args.time)
+      showflagsperant(args.ms, notime=args.notime)
     elif args.operation == "reset":
       pt.taql("UPDATE %s SET FLAG=False"%(args.ms))
+      showflagsperant(args.ms, notime=args.notime)
     else:
       print("Operation must be 'show' or 'set'")
