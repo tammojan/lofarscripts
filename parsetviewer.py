@@ -9,6 +9,9 @@ from lofar import parameterset as ps
 import argparse
 from collections import OrderedDict
 
+# Keys that will appear before all others
+toplevelkeys = ['pipeline', 'msin', 'msout']
+
 def basekeys(allset):
     '''Returns ('b1','b2') from ['b1.bla','b1.bla2','b2.baea.fsda','b2.basde']'''
     ret = []
@@ -17,8 +20,8 @@ def basekeys(allset):
     return list(OrderedDict.fromkeys(ret))
 
 def el_index(element,llist):
-    '''Return first index of element in llist, -1 for 'pipeline', or very large if element is not in llist'''
-    if element=='pipeline':
+    '''Return first index of element in llist, -1 for top level keys, or very large if element is not in llist'''
+    if element in toplevelkeys:
         return -1
     try:
         idx=llist.index(element)
@@ -39,11 +42,16 @@ class ParsetViewer:
         keys=basekeys(p.keys())
         if treeiter is None: 
             # Root level
-            steps=p.getStringVector('pipeline.steps','[]')
+            steps=p.getStringVector('steps','[]')
             print steps
             if not self.showall:
               # Only show top-level elements that will get parsed
-              keys=['pipeline']+steps
+              keys = []
+              if p.isDefined('pipeline'):
+                  keys += ['pipeline']
+              elif p.isDefined('msin'):
+                  keys += ['msin']
+              keys += steps
             # Order steps by their order in pipeline.steps
             keys=sorted(keys,key=lambda k:el_index(k, steps))
         for key in keys:
@@ -101,7 +109,7 @@ class ParsetViewer:
         self.treeview.set_search_column(0)
 
         # Allow sorting on the column
-        self.keycolumn.set_sort_column_id(0)
+        # self.keycolumn.set_sort_column_id(0)
 
         # Allow drag and drop reordering of rows
         # self.treeview.set_reorderable(True)
