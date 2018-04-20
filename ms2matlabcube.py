@@ -33,6 +33,7 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
   V  = np.zeros((nants*2,nants*2,ntimes,nch),dtype=np.complex)
   Vm = np.zeros((nants*2,nants*2,ntimes,nch),dtype=np.complex)
   W  = np.zeros((nants*2,nants*2,ntimes,nch),dtype=np.float)
+  UVW= np.zeros((nants,nants,ntimes,3),dtype=np.float)
 
   for ch in range(nch):
     print "Channel",ch
@@ -44,6 +45,7 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
       flag=t.col('FLAG')
       model=t.col(modelcolname)
       weight=t.col('WEIGHT_SPECTRUM')
+      uvw=t.col('UVW')
 
       antenna1=t.col('ANTENNA1')
       antenna2=t.col('ANTENNA2')
@@ -51,6 +53,8 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
       for bl in range(data.nrows()):
         ant1=antenna1[bl]
         ant2=antenna2[bl]
+        UVW[ant1][ant2][timeslot][:] = uvw[timeslot]
+        UVW[ant2][ant1][timeslot][:] =-uvw[timeslot]
         if ant1==ant2:
           continue
         for cor in range(4):
@@ -72,9 +76,9 @@ def ms2matlabcube(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',
     
       
   if applyweights:
-    scipy.io.savemat(visfilename, dict(Vcube=V, Vmcube=Vm), oned_as="row")
+    scipy.io.savemat(visfilename, dict(Vcube=V, Vmcube=Vm, UVW=UVW), oned_as="row")
   else:
-    scipy.io.savemat(visfilename, dict(Vcube=V, Vmcube=Vm, Wgtcube=W), oned_as="row")
+    scipy.io.savemat(visfilename, dict(Vcube=V, Vmcube=Vm, Wgtcube=W, UVW=UVW), oned_as="row")
 
   print "Stored timeslot", timeslot, "of column", datacolname, "of file", msname, "as", visfilename
   print "Stored timeslot", timeslot, "of column", modelcolname, "of file", msname, "in", visfilename
