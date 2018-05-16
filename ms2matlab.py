@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pyrap.tables import table, taql
+from casacore.tables import table, taql
 from math import sqrt
 import numpy as np
 import scipy.io
@@ -47,10 +47,10 @@ def ms2matlab(datacolname='DATA',msname='test1.MS',visfilename='bbsvis.mat',time
   else:
     scipy.io.savemat(visfilename, dict(V=V, Vm=Vm, Wgt=W), oned_as="row")
 
-  print "Stored timeslot", timeslot, " channel", channel, "of column", datacolname, "of file", msname, "as", visfilename
-  print "Stored timeslot", timeslot, " channel", channel, "of column", modelcolname, "of file", msname, "in", visfilename
+  print("Stored timeslot", timeslot, " channel", channel, "of column", datacolname, "of file", msname, "as", visfilename)
+  print("Stored timeslot", timeslot, " channel", channel, "of column", modelcolname, "of file", msname, "in", visfilename)
   if not applyweights:
-    print "Stored timeslot", timeslot, "weights of file", msname, "in", visfilename
+    print("Stored timeslot", timeslot, "weights of file", msname, "in", visfilename)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description = "Extract data and model data from a MS, save in matlab format")
